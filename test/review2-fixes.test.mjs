@@ -3,6 +3,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { startRegistry, makeTree, run } from './helpers.mjs';
 import { resolveServer } from '../src/resolve.js';
 import { loadAll, makeRows, applyLookups } from '../src/check.js';
@@ -140,7 +141,8 @@ test('#12: auth matches auth/auth-token/authorization/oauth, never author/author
 // ---- item 11 / N3: CI matrix and lockfile -------------------------------------
 
 test('#11/N3: CI runs Node 24 and npm ci against a committed zero-dependency lockfile', () => {
-  const root = path.join(import.meta.dirname || path.dirname(new URL(import.meta.url).pathname), '..');
+  // fileURLToPath, not URL.pathname: on Windows the pathname is /D:/a/... (import.meta.dirname needs Node 20.11+)
+  const root = fileURLToPath(new URL('..', import.meta.url));
   const ci = read(path.join(root, '.github/workflows/ci.yml'));
   assert.match(ci, /node: \[18, 20, 22, 24\]/);
   assert.match(ci, /npm ci/);
