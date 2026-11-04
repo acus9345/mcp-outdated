@@ -1,0 +1,5 @@
+# Source files: LF everywhere.
+* text=auto eol=lf
+# Fixtures are compared byte-for-byte (some are deliberately CRLF / BOM):
+# never let git convert them.
+test/fixtures/** -text

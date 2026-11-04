@@ -1,0 +1,44 @@
+{
+  "name": "mcp-outdated",
+  "version": "0.1.0",
+  "description": "npm outdated for MCP servers: finds unpinned (npx -y / uvx) and outdated MCP servers across Claude Code, Claude Desktop, Cursor, VS Code and Codex configs, and pins them.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "outdated",
+    "pin",
+    "supply-chain",
+    "npx",
+    "uvx",
+    "claude",
+    "cursor",
+    "codex",
+    "vscode",
+    "cli"
+  ],
+  "author": "acus9345",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "mcp-outdated": "bin/mcp-outdated.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test",
+    "smoke:live": "node scripts/live-smoke.mjs",
+    "lint": "node --check bin/mcp-outdated.js && node scripts/check-syntax.mjs"
+  }
+}

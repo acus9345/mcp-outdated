@@ -1,0 +1,11 @@
+{
+  // VS Code uses "servers", and allows comments
+  "inputs": [{ "type": "promptString", "id": "key", "password": true }],
+  "servers": {
+    "everything": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-everything@^1.0.0"],
+    },
+  },
+}

@@ -1,0 +1,3 @@
+[mcp_servers.x]
+command = "npx"
+args = ["-y", "pkg"

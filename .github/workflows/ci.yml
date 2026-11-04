@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Node ${{ matrix.node }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: [18, 20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install (zero dependencies; checks the lockfile)
+        run: npm ci
+      - name: Lint (syntax check)
+        run: npm run lint
+      - name: Test (no network; mock registry)
+        run: npm test
+      - name: Pack and run the installed CLI
+        shell: bash
+        run: |
+          npm pack
+          mkdir -p "$RUNNER_TEMP/pack-test"
+          cp mcp-outdated-*.tgz "$RUNNER_TEMP/pack-test/"
+          cd "$RUNNER_TEMP/pack-test"
+          npm init -y > /dev/null
+          npm install ./mcp-outdated-*.tgz
+          npx mcp-outdated --help
+          npx mcp-outdated --version
+          npx mcp-outdated --home "$GITHUB_WORKSPACE/test/fixtures/home" --project "$GITHUB_WORKSPACE/test/fixtures/project" --offline

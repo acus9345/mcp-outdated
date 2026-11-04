@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "a": {
+      "command": "npx",
+      "args": ["-y", "pkg"]
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "numStartups": 12,
+  "mcpServers": {
+    "memory": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory@latest"],
+      "env": {}
+    }
+  },
+  "projects": {
+    "/work/app": {
+      "allowedTools": [],
+      "mcpServers": {
+        "sentry": {
+          "command": "npx",
+          "args": ["-y", "@sentry/mcp-server@0.9.0"],
+          "env": { "SENTRY_ACCESS_TOKEN": "sntrys_SECRET_VALUE_123" }
+        }
+      }
+    }
+  }
+}

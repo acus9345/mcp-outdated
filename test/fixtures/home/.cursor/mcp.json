@@ -1,0 +1,11 @@
+{
+	"mcpServers": {
+		"fetch": {
+			"command": "uvx",
+			"args": ["mcp-server-fetch"]
+		},
+		"linear": {
+			"url": "https://mcp.linear.app/sse?token=SECRET_QUERY"
+		}
+	}
+}
