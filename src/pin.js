@@ -5,7 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { pathKey } from './errors.js';
 import { tomlString } from './toml.js';
-import { isSecretPath, redactArgs, redactText } from './redact.js';
+import { isSecretPath, redactArgs, redactText, redactValue, splitCommand } from './redact.js';
 
 const PINNABLE = new Set(['none', 'latest']);
 
@@ -19,7 +19,11 @@ function getAt(doc, p) {
 }
 
 function newSpec(res, latest) {
-  const npmPrefix = res.token.value.slice(res.token.prefix.length).startsWith('npm:') ? 'npm:' : '';
+  let raw = res.token.value.slice(res.token.prefix.length);
+  if (res.token.quote && raw.startsWith(res.token.quote) && raw.endsWith(res.token.quote) && raw.length >= 2) {
+    raw = raw.slice(1, -1);
+  }
+  const npmPrefix = raw.startsWith('npm:') ? 'npm:' : '';
   if (res.ecosystem === 'npm') return `${npmPrefix}${res.name}@${latest}`;
   return `${res.name}${res.extras || ''}==${latest}`;
 }
@@ -138,9 +142,9 @@ export function rewriteConfig(cfg, targets) {
       });
     }
     if (typeof entry.command === 'string') {
-      const words = entry.command.split(/\s+/).filter(Boolean);
+      const words = splitCommand(entry.command).map((w) => w.value);
       const span = cfg.spans.get(pathKey([...t.row._path, 'command']));
-      if (span && redactArgs(words).some((v, i) => v !== words[i])) secretSpans.push(span);
+      if (span && (redactValue(entry.command) !== entry.command || redactArgs(words).some((v, i) => v !== words[i]))) secretSpans.push(span);
     }
   }
   const byLine = new Map();
@@ -308,6 +312,7 @@ export function pinConfigs(configs, rows, { dryRun = false, hooks = {} } = {}) {
       } catch (e) {
         if (e && e.code === 'CHANGED') {
           if (file.backup) fs.rmSync(file.backup, { force: true });
+          file.backup = null;
           errors.push(`${cfg.file}: changed during run, re-run`);
           files.push(file);
           return;

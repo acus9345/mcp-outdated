@@ -147,6 +147,33 @@ export function maskUrlPaths(s) {
   return s.replace(/\b([a-z][a-z0-9+.-]*:\/\/[^/\s"'?#]+)([/?#][^\s"']*)?/gi, (m, origin, rest) => (rest && rest !== '/' ? `${origin}/${MASK}` : m));
 }
 
+/**
+ * Quote-aware split of a whole command line. Backslashes are literal (Windows
+ * paths survive). Each word keeps its raw source span for --pin.
+ */
+export function splitCommand(str) {
+  const words = [];
+  let i = 0;
+  while (i < str.length) {
+    while (i < str.length && /\s/.test(str[i])) i++;
+    if (i >= str.length) break;
+    const start = i;
+    let value = '';
+    let quote = null;
+    while (i < str.length && (quote || !/\s/.test(str[i]))) {
+      const c = str[i];
+      if (quote) {
+        if (c === quote) quote = null;
+        else value += c;
+      } else if (c === '"' || c === "'") quote = c;
+      else value += c;
+      i++;
+    }
+    words.push({ value, start, end: i, raw: str.slice(start, i), unterminated: !!quote });
+  }
+  return words;
+}
+
 export function redactArgs(args, depth = 0) {
   return redactArgList(args, depth).map(maskUrlPaths);
 }
@@ -206,12 +233,21 @@ function redactArgList(args, depth) {
       continue;
     }
     // One argument holding a whole command line (cmd /c "npx --token X pkg"):
-    // redact its words as arguments too.
+    // redact its words as arguments too, preserving quotes around unchanged parts.
     if (depth === 0 && /\s/.test(a.trim())) {
       const v = redactValue(a);
-      const words = v.trim().split(/\s+/);
+      const parts = splitCommand(v);
+      const words = parts.map((p) => p.value);
       const red = redactArgList(words, 1);
-      out.push(red.some((w, j) => w !== words[j]) ? red.join(' ') : v);
+      if (red.some((w, j) => w !== words[j])) {
+        out.push(red.map((w, j) => {
+          if (w === words[j]) return parts[j].raw;
+          const q = parts[j].raw[0];
+          return (q === '"' || q === "'") && parts[j].raw.endsWith(q) && /\s/.test(w) ? `${q}${w}${q}` : w;
+        }).join(' '));
+      } else {
+        out.push(v);
+      }
       continue;
     }
     out.push(redactValue(a));

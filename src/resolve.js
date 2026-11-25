@@ -4,7 +4,9 @@
 // we cannot tell which word is the package. Such entries resolve to
 // kind "unknown" and are never pinned.
 import fs from 'node:fs';
-import { isUnsafeName } from './redact.js';
+import { isUnsafeName, splitCommand } from './redact.js';
+
+export { splitCommand };
 
 const NPM_NAME = /^(?:@[a-z0-9~-][a-z0-9._~-]*\/)?[a-z0-9~-][a-z0-9._~-]*$/i;
 const PY_NAME = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;
@@ -56,35 +58,6 @@ const DOCKER_VALUE_FLAGS = new Set([
 ]);
 const DOCKER_BOOL_FLAGS = new Set(['-i', '--interactive', '-t', '--tty', '-d', '--detach', '--rm', '--init', '--privileged', '--read-only', '-q', '--quiet', '-P', '--publish-all', '--no-healthcheck', '--oom-kill-disable', '--sig-proxy', '--disable-content-trust', '--use-api-socket']);
 
-// ---- command splitting ---------------------------------------------------
-
-/**
- * Quote-aware split of a whole command line. Backslashes are literal (Windows
- * paths survive). Each word keeps its raw source span for --pin.
- */
-export function splitCommand(str) {
-  const words = [];
-  let i = 0;
-  while (i < str.length) {
-    while (i < str.length && /\s/.test(str[i])) i++;
-    if (i >= str.length) break;
-    const start = i;
-    let value = '';
-    let quote = null;
-    while (i < str.length && (quote || !/\s/.test(str[i]))) {
-      const c = str[i];
-      if (quote) {
-        if (c === quote) quote = null;
-        else value += c;
-      } else if (c === '"' || c === "'") quote = c;
-      else value += c;
-      i++;
-    }
-    words.push({ value, start, end: i, raw: str.slice(start, i), unterminated: !!quote });
-  }
-  return words;
-}
-
 function isFile(p) {
   try {
     return fs.statSync(p).isFile();
@@ -106,6 +79,7 @@ function commandWords(command, exists) {
   // Unquoted absolute path containing spaces, e.g. C:\Program Files\nodejs\npx.cmd -y pkg
   if (ABS_PATH.test(words[0].raw) && words[0].raw === words[0].value) {
     for (let k = 0; k < words.length; k++) {
+      if (k > 0 && (/^(?:[\\/]|-[A-Za-z-])/.test(words[k].raw))) break;
       const joined = command.slice(words[0].start, words[k].end);
       const onDisk = exists(joined);
       if (onDisk || (k > 0 && KNOWN_LAUNCHERS.has(launcherName(joined)))) {
@@ -203,6 +177,7 @@ export function parseNpmSpec(raw) {
     version = '';
   }
   if (!NPM_NAME.test(name)) return null; // includes github shorthand "user/repo"
+  if (/[:/\\?#]/.test(version)) return null;
   return { name, version, pin: classifyNpmVersion(version) };
 }
 
@@ -225,7 +200,11 @@ export function parsePySpec(raw) {
   if (rest === '') return { name, extras, version: '', pin: 'none' };
   if (rest === '@latest') return { name, extras, version: 'latest', pin: 'latest' };
   let mm;
-  if ((mm = /^@(\S+)$/.exec(rest))) return { name, extras, version: mm[1], pin: PY_VERSION.test(mm[1]) ? 'exact' : 'range' };
+  if ((mm = /^@(\S+)$/.exec(rest))) {
+    if (/[:/\\?#@]/.test(mm[1])) return null;
+    return { name, extras, version: mm[1], pin: PY_VERSION.test(mm[1]) ? 'exact' : 'range' };
+  }
+  if (/[:/\\?#@]/.test(rest)) return null;
   if ((mm = /^===?\s*([^\s,;]+)$/.exec(rest)) && PY_VERSION.test(mm[1])) return { name, extras, version: mm[1], pin: 'exact' };
   if (/^(?:[<>=!~]=?|===)/.test(rest)) return { name, extras, version: rest, pin: 'range' };
   return null;
@@ -257,12 +236,12 @@ export const HIDDEN = '(hidden)';
 function exeWord(tok) {
   const value = String(tok.value);
   if (tok.verified || tok.word || !/\s/.test(value.trim())) return value;
-  if (!/:\/\//.test(value) && KNOWN_LAUNCHERS.has(launcherName(value))) return value;
+  const parts = splitCommand(value);
+  if (!/:\/\//.test(value) && !parts.slice(1).some((w) => /^(?:[\\/]|-[A-Za-z-])/.test(w.raw)) && KNOWN_LAUNCHERS.has(launcherName(value))) return value;
   const w = commandWords(value, () => false)[0];
   if (!w) return '';
   if (!w.whole) return w.value;
-  const first = splitCommand(value)[0];
-  return first ? first.value : '';
+  return parts[0] ? parts[0].value : '';
 }
 
 /**
@@ -398,8 +377,9 @@ export function resolveServer(entry, opts = {}) {
   if (!entry || typeof entry !== 'object') return { kind: 'unknown', reason: 'invalid entry' };
   const exists = opts.exists || isFile;
   const type = typeof entry.type === 'string' ? entry.type.toLowerCase() : '';
-  if (typeof entry.url === 'string' || typeof entry.serverUrl === 'string' || ['http', 'sse', 'streamable-http', 'streamablehttp'].includes(type)) {
-    return { kind: 'remote', launcher: type || 'http', url: entry.url || entry.serverUrl || '' };
+  const remoteUrl = (typeof entry.url === 'string' && entry.url) || (typeof entry.serverUrl === 'string' && entry.serverUrl) || '';
+  if (remoteUrl || ['http', 'sse', 'streamable-http', 'streamablehttp'].includes(type) || ((typeof entry.url === 'string' || typeof entry.serverUrl === 'string') && typeof entry.command !== 'string')) {
+    return { kind: 'remote', launcher: type || 'http', url: remoteUrl };
   }
   let argv = buildArgv(entry, exists);
   if (!argv.length || !argv[0].value) return { kind: 'unknown', reason: 'no command' };
