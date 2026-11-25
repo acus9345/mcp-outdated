@@ -1,6 +1,6 @@
 {
   "name": "mcp-outdated",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "npm outdated for MCP servers: finds unpinned (npx -y / uvx) and outdated MCP servers across Claude Code, Claude Desktop, Cursor, VS Code and Codex configs, and pins them.",
   "keywords": [
     "mcp",
